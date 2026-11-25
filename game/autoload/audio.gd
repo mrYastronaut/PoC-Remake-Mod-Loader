@@ -15,7 +15,6 @@ var _music_rel_path := ""
 var _music_loop := true
 
 const SFX_CHANNELS := 6
-const LAUNCHER_MUSIC_BUS := &"Launcher Music"
 ## Niveles del volumen de opciones (0..15) a 0..127: DAT_005adb40.
 const LEVELS := [0, 35, 65, 85, 95, 104, 107, 110, 113, 115, 117, 119, 121, 123, 125, 127]
 
@@ -57,8 +56,6 @@ func reload_native_tables() -> void:
 
 
 func _setup_players() -> void:
-	AudioServer.add_bus()
-	AudioServer.set_bus_name(AudioServer.bus_count - 1, LAUNCHER_MUSIC_BUS)
 	_music.bus = "Master"
 	_music.finished.connect(func() -> void:
 		if _music_loop: _music.play())
@@ -70,16 +67,6 @@ func _setup_players() -> void:
 	add_child(_speech)
 	_speech.finished.connect(_advance_speech)
 	_sfx.append(_speech)
-
-
-func set_launcher_music_muted(muted: bool) -> void:
-	AudioServer.set_bus_mute(AudioServer.get_bus_index(LAUNCHER_MUSIC_BUS), muted)
-
-
-func preload_music(rel_path: String) -> void:
-	var path := Assets.resolve(rel_path)
-	if not path.is_empty():
-		_load(path)
 
 
 func play_music(rel_path: String, loop := true) -> void:
@@ -153,7 +140,7 @@ func play_sfx(rel_path: String) -> void:
 func _note_game_end(path: String, rel_path: String) -> void:
 	var stream := _load(path)
 	if stream == null: return
-	var start: int = Debug._frame
+	var start := Engine.get_process_frames()
 	if _is_kaiba_speech(rel_path):
 		start = maxi(start, _game_speech_end)
 	_game_ends[path] = start + int(ceil(stream.get_length() * NativeClock.HZ))
@@ -184,7 +171,7 @@ func sfx_finished(rel_path: String) -> bool:
 	if level == 0: return true
 	var path := Assets.resolve(rel_path)
 	if game_clock:
-		return Debug._frame >= int(_game_ends.get(path, 0))
+		return Engine.get_process_frames() >= int(_game_ends.get(path, 0))
 	for queued in _speech_queue:
 		if queued.path == path: return false
 	var stream: AudioStream = _cache.get(path)
@@ -213,7 +200,7 @@ func fade_native(duration: int) -> void:
 		if not player.playing or int(player.get_meta("native_audio_class", 1)) != 2: continue
 		var pending: Dictionary = _fades.get(player, {})
 		if not pending.is_empty() and duration + 1 > int(pending.remaining): continue
-		var volume := roundi(maxf(player.volume_db, -100.0) * 100.0)
+		var volume := roundi(player.volume_db * 100.0)
 		if volume <= -5000:
 			_stop_faded(player)
 			continue
@@ -251,7 +238,7 @@ func _stop_faded(player: AudioStreamPlayer) -> void:
 
 func _db(rel_path: String) -> float:
 	if level <= 0:
-		return -INF
+		return -80.0
 	var own: int = _native.get(rel_path.to_lower(), {}).get("volume", 127)
 	var v := own * level / 127
 	return (v * 10000 / 127 - 10000) / 100.0

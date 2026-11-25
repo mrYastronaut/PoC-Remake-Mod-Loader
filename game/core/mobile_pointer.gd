@@ -12,7 +12,6 @@ var _hold_time := 0.0
 var _holding := false
 var _start := Vector2.ZERO
 var _generation := 0
-var _pile_request := 0
 var _action_label := Label.new()
 var _actions: Array[int] = []
 var _choices: Array[Button] = []
@@ -34,17 +33,7 @@ var _scrolling := false
 var _scroll_last := Vector2.ZERO
 var _scroll_amount := 0.0
 const HOLD_SECONDS := 0.5
-const JOEY_VIEW_PILE_ACTION := 1 << 12
-const JOEY_PILE_TIMEOUT_MS := 2500
 const ACTION_NAMES := {1: "Invocar", 2: "Voltear", 3: "Atacar", 4: "Activar", 5: "Colocar", 6: "Posición de defensa", 7: "Posición de ataque", 8: "Robar", 9: "Rendirse", 10: "Fusión", 11: "Invocación especial en ataque", 12: "Invocación especial en defensa"}
-const TRIBUTE_HINTS := {
-	"s": ["Toca un monstruo para sacrificarlo", "Selecciona el primer sacrificio", "Selecciona el segundo sacrificio"],
-	"e": ["Tap a monster to Tribute", "Select the first Tribute", "Select the second Tribute"],
-	"g": ["Tippe auf ein Monster, um es als Tribut anzubieten", "Wähle das erste Tributmonster", "Wähle das zweite Tributmonster"],
-	"f": ["Touchez un monstre pour le Sacrifier", "Sélectionnez le premier Sacrifice", "Sélectionnez le second Sacrifice"],
-	"i": ["Tocca un mostro per offrirlo come Tributo", "Seleziona il primo Tributo", "Seleziona il secondo Tributo"],
-	"j": ["リリースするモンスターをタップ", "1体目のモンスターを選択", "2体目のモンスターを選択"],
-}
 
 func _scene_point(point: Vector2) -> Vector2:
 	return Game._screen.get_viewport().get_screen_transform().affine_inverse() * _physical(point)
@@ -76,16 +65,15 @@ func _process(delta: float) -> void:
 			_confirm_scene = null
 	_update_tribute_hint()
 	if not _holding or _pressed_button != MOUSE_BUTTON_NONE or _scrolling or (_scroll_kind != "" and _scroll_kind != "bag"): return
-	if _touch_card == "pile": return
 	if _touch_card == "" and _deck_touch and _mode() == "menu": return
 	# Gesture thresholds use real seconds even when gameplay simulation runs at 2x.
 	_hold_time += delta / maxf(Engine.time_scale, 0.001)
 	if _hold_time >= HOLD_SECONDS:
 		_holding = false
-		if _touch_card.begins_with("duel:") and _actions.has(5) and (_mode() == "hold" or _selected_card == _touch_card):
-			_execute_action.call_deferred(5, _target)
-		elif _touch_card != "" and _selected_card != _touch_card:
+		if _touch_card != "" and _selected_card != _touch_card:
 			_finish_card_tap(_target)
+		elif _touch_card.begins_with("duel:") and _actions.has(5):
+			_execute_action.call_deferred(5, _target)
 		else: _dispatch_click.call_deferred(MOUSE_BUTTON_RIGHT, _target)
 
 func _ready() -> void:
@@ -140,7 +128,6 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenDrag:
 		get_viewport().set_input_as_handled()
 		if event.index == _finger and _holding:
-			if _touch_card == "pile": return
 			_target = event.position
 			if _scroll_drag(_target): return
 			if _drag_starting: return
@@ -173,21 +160,19 @@ func _input(event: InputEvent) -> void:
 				if _holding:
 					_holding = false
 					if _pressed_button == MOUSE_BUTTON_NONE:
-						if _touch_card == "pile": _dispatch_click.call_deferred(MOUSE_BUTTON_LEFT, _start, _pile_request)
-						elif _touch_card != "": _finish_card_tap(_target)
+						if _touch_card != "": _finish_card_tap(_target)
 						elif _deck_touch and _mode() == "menu": _show_at(_target)
 						else: _dispatch_click.call_deferred(MOUSE_BUTTON_LEFT, _target)
 					else: _release()
 			return
 		if _dispatching or _preparing or (_finger != -1 and _finger != event.index): return
-		_pile_request += 1
 		_finger = event.index
 		if _menu.visible:
 			_choose(event.position)
 			return
 		_actions.clear()
 		_touch_card = _card_identity(event.position)
-		if _touch_card in ["", "pile"]: _selected_card = ""
+		if _touch_card == "": _selected_card = ""
 		_deck_touch = Game._screen.get_script().resource_path.ends_with("deck_editor.gd") and Game._screen._modal == null and not Game._screen._hit_at(_scene_point(event.position)).is_empty()
 		_right_available = _has_right_action(event.position)
 		_target = event.position
@@ -197,9 +182,6 @@ func _input(event: InputEvent) -> void:
 		_pending_drop = false
 		_scroll_candidate(_target)
 		_move_mouse(_target)
-		if _touch_card == "pile":
-			_holding = true
-			return
 		if _scroll_kind != "":
 			_holding = true
 			return
@@ -309,7 +291,6 @@ func _choose(point: Vector2) -> void:
 	else: _dispatch_click.call_deferred(MOUSE_BUTTON_LEFT if chosen == 0 else MOUSE_BUTTON_RIGHT, _target)
 
 func _execute_action(action: int, point: Vector2) -> void:
-	_selected_card = ""
 	if action in [1, 5]:
 		_confirm_scene = Game._screen
 		_confirm_until = Time.get_ticks_msec() + 5000
@@ -345,31 +326,14 @@ func _move_mouse(point: Vector2) -> void:
 	motion.button_mask = MOUSE_BUTTON_MASK_LEFT if _pressed_button == MOUSE_BUTTON_LEFT else MOUSE_BUTTON_MASK_RIGHT if _pressed_button == MOUSE_BUTTON_RIGHT else 0
 	Input.parse_input_event(motion)
 
-func _dispatch_click(button: MouseButton, point: Vector2, pile_request := -1) -> void:
+func _dispatch_click(button: MouseButton, point: Vector2) -> void:
 	var generation := _generation
-	var joey_pile := pile_request >= 0 and Game.current_game == "joey"
-	if joey_pile and pile_request != _pile_request: return
-	_dispatching = not joey_pile
+	_dispatching = true
 	_move_mouse(point)
-	if pile_request >= 0:
-		await get_tree().create_timer(2.0 / NativeClock.HZ).timeout
-		if joey_pile:
-			# 5a0010 ofrece la consulta al acabar todos los objetos de la jugada.
-			var deadline := Time.get_ticks_msec() + JOEY_PILE_TIMEOUT_MS
-			while generation == _generation and pile_request == _pile_request:
-				var scene: Node = Game._screen
-				if not scene._visual.busy() and scene._waiting_for_player() \
-						and (scene._duel.m.u16(0xa1340a) & JOEY_VIEW_PILE_ACTION) != 0:
-					break
-				if Time.get_ticks_msec() >= deadline: return
-				await get_tree().process_frame
-			if generation != _generation or pile_request != _pile_request: return
-	else:
-		await get_tree().process_frame
+	await get_tree().process_frame
 	if generation != _generation:
 		_dispatching = false
 		return
-	_dispatching = true
 	_press(button, point)
 	await get_tree().process_frame
 	_release(point)
@@ -513,9 +477,7 @@ func _card_identity(point: Vector2) -> String:
 		if not hit.is_empty(): return "deck:%s" % hit["key"]
 	if PlatformInput._normal_duel_active() and scene._duel != null and scene._duel.dialog_open.is_empty() and scene._duel.list_open.is_empty() and not _target_selection(scene):
 		var hit: Dictionary = scene._hit_card(at)
-		if not hit.is_empty():
-			if int(hit["loc"]) >= 12: return "pile"
-			return "duel:%s:%s:%s:%s" % [hit["p"], hit["loc"], hit["i"], hit["id"]]
+		if not hit.is_empty(): return "duel:%s:%s:%s:%s" % [hit["p"], hit["loc"], hit["i"], hit["id"]]
 	return ""
 
 func _finish_card_tap(point: Vector2) -> void:
@@ -556,8 +518,7 @@ func _update_tribute_hint() -> void:
 	if not _material_selection(scene) or ((action >> 2) & 15) not in [0, 4] or not d.dialog_open.is_empty(): return
 	var state: int = d.m.u8(0xa1340d)
 	if state not in [2, 3, 4, 5, 10, 11]: return
-	var hint_index := 0 if state in [10, 11] else (1 if state in [2, 3] else 2)
-	_tribute_hint.text = TRIBUTE_HINTS.get(Assets.lang, TRIBUTE_HINTS["e"])[hint_index]
+	_tribute_hint.text = "Toca un monstruo para sacrificarlo" if state in [10, 11] else "Selecciona el primer sacrificio" if state in [2, 3] else "Selecciona el segundo sacrificio"
 	var bounds := get_viewport().get_visible_rect()
 	_tribute_hint.position = bounds.position + Vector2(4, 8)
 	_tribute_hint.size = Vector2(bounds.size.x - 8, 36)

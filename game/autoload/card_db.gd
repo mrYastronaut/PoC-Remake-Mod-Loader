@@ -23,6 +23,7 @@ const PACK_BITS := {"yugi": 1, "kaiba": 2, "joey": 4}
 const USABLE_BITS := {"yugi": 1, "kaiba": 1 | 2, "joey": 1 | 2 | 4}
 
 var cards: Array[Dictionary] = []
+var mod_cards: Array = []   # subconjunto de `cards` aportado por mods
 var _by_internal_id := {}
 var _type_labels := {}
 
@@ -33,12 +34,22 @@ func _ready() -> void:
 
 func load_db() -> void:
 	cards.clear()
+	mod_cards = []
 	_by_internal_id.clear()
 	_type_labels.clear()
 	var data: Variant = Assets.read_json("common/db/cards.json")
 	if data == null:
 		return
 	for card: Dictionary in data:
+		cards.append(card)
+		_by_internal_id[int(card["internal_id"])] = card
+	## Cartas de mods (ver ModCards): mismo esquema, con la clave extra "mod".
+	mod_cards = ModCards.apply_to_db(cards.duplicate(), ModCards.active_storage)
+	NativeCardLimits.mod_limits = {}
+	for card: Dictionary in mod_cards:
+		if card.has("limit"):
+			NativeCardLimits.mod_limits[int(card["internal_id"])] = int(card["limit"])
+	for card: Dictionary in mod_cards:
 		cards.append(card)
 		_by_internal_id[int(card["internal_id"])] = card
 

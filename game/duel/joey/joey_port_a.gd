@@ -490,15 +490,12 @@ func f569820(p: int, card_id: int, skip: int) -> int:
 	var monster := (f4025d0(f402460(card_id)) & 0xffff) < 0x15
 	var first := 0 if monster else 5
 	var last := 5 if monster else 11
-	var excluded := skip & 0xffffffff
-	var id := card_id & 0xffff
 	for z in range(first, last):
 		var at := JoeyMem.zone(p, z)
-		var entry := m.u32(at)
-		var index := entry & 0xfff
-		if index == 0 or z == excluded:
+		var index := m.u32(at) & 0xfff
+		if index == 0 or z == (skip & 0xffffffff):
 			continue
-		if (f4022e0(index) & 0xffff) != id:
+		if (f4022e0(index) & 0xffff) != (card_id & 0xffff):
 			continue
 		var status := m.u32(at + 0x8c)
 		if ((m.u8(at + 6) >> 1) & ~(status >> 5) & ~(status >> 1) & 1) == 0:
@@ -506,6 +503,7 @@ func f569820(p: int, card_id: int, skip: int) -> int:
 		# El desplazamiento usa p sin acotar: (p << 4) + z, modulo 32.
 		if monster and ((1 << (((p << 4) + z) & 0x1f)) & m.u32(0xa577f0)) != 0:
 			continue
-		if f56b440(index, JoeyMem.ident(entry)) == 0:
+		var e := m.u32(at)
+		if f56b440(index, JoeyMem.ident(e)) == 0:
 			count += 1
 	return count

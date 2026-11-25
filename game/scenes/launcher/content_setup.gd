@@ -1,15 +1,10 @@
 extends "res://scenes/launcher/launcher.gd"
 ## Importacion local: Python convierte en un hilo; nunca se suben archivos a la red.
 
-const REIMPORT_SIZE := 18.0
-
 var _sources := {}
 var _voice_sources := {}
 var _labels := {}
 var _buttons: Array[Button] = []
-var _reimport_buttons: Array[Button] = []
-var _reimport_menu := PopupMenu.new()
-var _reimport_game := ""
 var _dialog := FileDialog.new()
 var _status := Label.new()
 var _python := LineEdit.new()
@@ -32,10 +27,9 @@ var _error_dialog := AcceptDialog.new()
 const DialogTheme = preload("res://scenes/launcher/dialog_theme.gd")
 var _error_details := TextEdit.new()
 var _error_link := LinkButton.new()
-var _resources := Button.new()
-var _android := Button.new()
-var _android_menu := AcceptDialog.new()
-var _resource_import: Node
+# Extra dubs (another Voice.dat): second action button, not on the game cards.
+var _voices := Button.new()
+var _voice_menu := PopupMenu.new()
 var _error_log_button: Button
 var _error_copy_button: Button
 var _error_log_path := ""
@@ -43,12 +37,12 @@ var _update_media_buttons := HBoxContainer.new()
 
 
 const COPY := {
-	"s": ["SUBE TUS RECURSOS", "Añade un juego y empieza a jugar", "Sin seleccionar", "Importar más recursos", "Compilar", "Pasa el mouse sobre un juego para comenzar.", "Volver", "Licencias", "Preparando tus juegos… Espera a que termine.", "No se pudo importar. Revisa los archivos y vuelve a intentarlo.", "Seleccionado", "Doblajes adicionales"],
-	"e": ["ADD YOUR RESOURCES", "Add a game and start playing", "Not selected", "Import more resources", "Build", "Move over a game to get started.", "Back", "Licenses", "Preparing your games… Please wait.", "Could not import. Check your files and try again.", "Selected", "Additional voice packs"],
-	"g": ["RESSOURCEN HINZUFÜGEN", "Füge ein Spiel hinzu und leg los", "Nicht ausgewählt", "Weitere Ressourcen importieren", "Kompilieren", "Bewege die Maus über ein Spiel.", "Zurück", "Lizenzen", "Spiele werden vorbereitet… Bitte warten.", "Import fehlgeschlagen. Prüfe die Dateien und versuche es erneut.", "Ausgewählt", "Zusätzliche Sprachpakete"],
-	"f": ["AJOUTE TES RESSOURCES", "Ajoute un jeu et commence à jouer", "Non sélectionné", "Importer plus de ressources", "Compiler", "Passe la souris sur un jeu pour commencer.", "Retour", "Licences", "Préparation des jeux… Patiente un instant.", "Échec de l’importation. Vérifie les fichiers et réessaie.", "Sélectionné", "Doublages supplémentaires"],
-	"i": ["AGGIUNGI LE TUE RISORSE", "Aggiungi un gioco e inizia a giocare", "Non selezionato", "Importa altre risorse", "Compila", "Passa il mouse su un gioco per iniziare.", "Indietro", "Licenze", "Preparazione dei giochi… Attendi.", "Importazione non riuscita. Controlla i file e riprova.", "Selezionato", "Doppiaggi aggiuntivi"],
-	"j": ["リソースを追加", "ゲームを追加してプレイしましょう", "未選択", "リソースを追加でインポート", "ビルド", "ゲームにカーソルを合わせてください。", "戻る", "ライセンス", "ゲームを準備しています… お待ちください。", "インポートできませんでした。ファイルを確認して再試行してください。", "選択済み", "追加音声"]
+	"s": ["SUBE TUS RECURSOS", "Añade un juego y empieza a jugar", "Sin seleccionar", "Voces +", "Extraer para PC", "Pasa el mouse sobre un juego para comenzar.", "Volver", "Licencias", "Preparando tus juegos… Espera a que termine.", "No se pudo importar. Revisa los archivos y vuelve a intentarlo.", "Seleccionado", "Doblajes adicionales"],
+	"e": ["ADD YOUR RESOURCES", "Add a game and start playing", "Not selected", "Voices +", "Extract for PC", "Move over a game to get started.", "Back", "Licenses", "Preparing your games… Please wait.", "Could not import. Check your files and try again.", "Selected", "Additional voice packs"],
+	"g": ["RESSOURCEN HINZUFÜGEN", "Füge ein Spiel hinzu und leg los", "Nicht ausgewählt", "Stimmen +", "Spiele vorbereiten", "Bewege die Maus über ein Spiel.", "Zurück", "Lizenzen", "Spiele werden vorbereitet… Bitte warten.", "Import fehlgeschlagen. Prüfe die Dateien und versuche es erneut.", "Ausgewählt", "Zusätzliche Sprachpakete"],
+	"f": ["AJOUTE TES RESSOURCES", "Ajoute un jeu et commence à jouer", "Non sélectionné", "Voix +", "Préparer les jeux", "Passe la souris sur un jeu pour commencer.", "Retour", "Licences", "Préparation des jeux… Patiente un instant.", "Échec de l’importation. Vérifie les fichiers et réessaie.", "Sélectionné", "Doublages supplémentaires"],
+	"i": ["AGGIUNGI LE TUE RISORSE", "Aggiungi un gioco e inizia a giocare", "Non selezionato", "Voci +", "Prepara i giochi", "Passa il mouse su un gioco per iniziare.", "Indietro", "Licenze", "Preparazione dei giochi… Attendi.", "Importazione non riuscita. Controlla i file e riprova.", "Selezionato", "Doppiaggi aggiuntivi"],
+	"j": ["リソースを追加", "ゲームを追加してプレイしましょう", "未選択", "音声 +", "ゲームを準備", "ゲームにカーソルを合わせてください。", "戻る", "ライセンス", "ゲームを準備しています… お待ちください。", "インポートできませんでした。ファイルを確認して再試行してください。", "選択済み", "追加音声"]
 }
 var _subtitle := Label.new()
 var _rows: Array[VBoxContainer] = []
@@ -112,20 +106,6 @@ func _ready() -> void:
 		path_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		add_child(path_label)
 		_labels[game] = path_label
-		var reimport := Button.new()
-		_style_control(reimport)
-		for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-			var style := reimport.get_theme_stylebox(state) as StyleBoxFlat
-			style.set_content_margin_all(0)
-			style.set_corner_radius_all(3)
-		reimport.draw.connect(func() -> void:
-			_controls.draw_icon_on(reimport, "reimport", reimport.size / 2.0, 12.0, GOLD_LIGHT))
-		reimport.focus_mode = Control.FOCUS_NONE
-		reimport.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		reimport.hide()
-		reimport.pressed.connect(_open_reimport_menu.bind(game, reimport))
-		add_child(reimport)
-		_reimport_buttons.append(reimport)
 	_python.text = "python"
 	_python.placeholder_text = "Python 3.12+ · pocx"
 	_style_control(_python)
@@ -143,22 +123,14 @@ func _ready() -> void:
 	_convert.disabled = true
 	_convert.pressed.connect(_start)
 	add_child(_convert)
-	_style_control(_android)
-	_android.text = "Android"
-	_android.pressed.connect(_open_android)
-	add_child(_android)
-	add_child(_android_menu)
-	DialogTheme.apply(_android_menu)
-	_android_menu.wrap_controls = false
-	var android_actions := VBoxContainer.new()
-	android_actions.add_theme_constant_override("separation", 12)
-	_android_menu.add_child(android_actions)
-	android_actions.add_child(_apk)
-	android_actions.add_child(_download_apk)
-	_apk.pressed.connect(func() -> void:
-		_android_menu.hide()
-		_start(false, true))
+	_style_control(_apk)
+	_apk.tooltip_text = _text("apk_tooltip")
+	_apk.pressed.connect(_start.bind(false, true))
+	add_child(_apk)
+	_style_control(_download_apk)
+	_download_apk.tooltip_text = _text("download_tooltip")
 	_download_apk.pressed.connect(_open_apk_download)
+	add_child(_download_apk)
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_color_override("font_color", GOLD_LIGHT.darkened(0.2))
@@ -199,12 +171,10 @@ func _ready() -> void:
 	_error_link.visible = false
 	_error_link.pressed.connect(func() -> void: _error_dialog.popup_centered(Vector2i(650, 400)))
 	add_child(_error_link)
-	_style_control(_resources)
-	add_child(_resources)
-	_resource_import = load("res://scenes/launcher/resource_import_dialog.gd").new()
-	add_child(_resource_import)
-	_resources.pressed.connect(_open_resources)
-	_resource_import.voice_requested.connect(_browse_voice)
+	_style_control(_voices)
+	_voices.pressed.connect(_open_voice_menu)
+	add_child(_voices)
+	_voice_menu.id_pressed.connect(func(id: int) -> void: _browse_voice(Game.GAMES[id]))
 	var menu_panel := StyleBoxFlat.new()
 	menu_panel.bg_color = Color(0.075, 0.05, 0.06)
 	menu_panel.border_color = Color(GOLD_LIGHT.darkened(0.15), 0.7)
@@ -214,13 +184,12 @@ func _ready() -> void:
 	var menu_hover := StyleBoxFlat.new()
 	menu_hover.bg_color = Color(GOLD_LIGHT, 0.12)
 	menu_hover.set_corner_radius_all(4)
-	_reimport_menu.add_theme_stylebox_override("panel", menu_panel)
-	_reimport_menu.add_theme_stylebox_override("hover", menu_hover)
-	_reimport_menu.add_theme_color_override("font_color", GOLD_LIGHT)
-	_reimport_menu.add_theme_color_override("font_hover_color", Color.WHITE)
-	_reimport_menu.add_theme_font_size_override("font_size", 15)
-	add_child(_reimport_menu)
-	_reimport_menu.id_pressed.connect(func(id: int) -> void: _browse(_reimport_game, id == 0))
+	_voice_menu.add_theme_stylebox_override("panel", menu_panel)
+	_voice_menu.add_theme_stylebox_override("hover", menu_hover)
+	_voice_menu.add_theme_color_override("font_color", GOLD_LIGHT)
+	_voice_menu.add_theme_color_override("font_hover_color", Color.WHITE)
+	_voice_menu.add_theme_font_size_override("font_size", 15)
+	add_child(_voice_menu)
 
 	get_tree().root.close_requested.connect(_close)
 	get_tree().root.mouse_exited.connect(_pointer_left_window)
@@ -235,19 +204,14 @@ func _language_updated() -> void:
 	super._language_updated()
 	_subtitle.text = str(LIBRARY_HINT[Assets.lang]) if Paths.has_data() else _copy(1)
 	_convert.text = _copy(4)
-	_convert.tooltip_text = Tips.text("extract", Assets.lang)
-	_apk.tooltip_text = _text("apk_tooltip")
-	_download_apk.tooltip_text = _text("download_tooltip")
-	_python.tooltip_text = Tips.text("python", Assets.lang)
-	_back.tooltip_text = Tips.text("back", Assets.lang)
-	_refresh_actions()
+	_convert.visible = true
 	_apk.text = {"s": "Crear .pck", "e": "Create .pck", "g": ".pck erstellen", "f": "Créer le .pck", "i": "Crea .pck", "j": ".pckを作成"}.get(Assets.lang, "Create .pck")
 	_download_apk.text = {"s": "Descargar APK", "e": "Download APK", "g": "APK herunterladen", "f": "Télécharger l'APK", "i": "Scarica APK", "j": "APKをダウンロード"}.get(Assets.lang, "Download APK")
-	_resources.text = _copy(3)
-	_resources.tooltip_text = _text("resources_tooltip")
-	_android.tooltip_text = _text("android_tooltip")
-	_android_menu.title = "Android"
-	_android_menu.ok_button_text = _resource_import.text("close") if _resource_import != null else "Close"
+	_download_apk.disabled = _busy
+	_voices.text = _copy(3)
+	_voices.tooltip_text = _copy(11)
+	_update_voices()
+	_apk.disabled = _busy or _tools_failed or Paths.storage_error or (not _has_pending() and not Paths.has_data())
 	if not _busy:
 		_status.text = _copy(5)
 	_back.text = _copy(6)
@@ -256,14 +220,11 @@ func _language_updated() -> void:
 		var buttons := _rows[i].get_child(0)
 		buttons.get_node("ISO").text = "ISO"
 		buttons.get_node("folder").text = _folder_label()
-		buttons.get_node("ISO").tooltip_text = Tips.text("iso", Assets.lang) % Game.TITLES[game]
-		buttons.get_node("folder").tooltip_text = Tips.text("folder", Assets.lang) % Game.TITLES[game]
 		var installed := Paths.has_game(game)
 		buttons.get_node("ISO").visible = not installed
 		buttons.get_node("folder").visible = not installed
 		_labels[game].text = _sources[game].get_file() if _sources.has(game) else "+ " + _copy(2)
-		_labels[game].visible = not installed or _sources.has(game)
-		_reimport_buttons[i].tooltip_text = _text("reimport") + " · " + Game.TITLES[game]
+		_labels[game].visible = not installed
 	if _tools_failed:
 		_status.text = _copy(9)
 	if Paths.storage_error:
@@ -283,23 +244,16 @@ func _layout() -> void:
 		var label: Label = _labels[Game.GAMES[i]]
 		label.position = _logos[i].position + Vector2(-SLOT.x / 2.0, 88)
 		label.size = Vector2(SLOT.x, 22)
-		_reimport_buttons[i].position = _logos[i].position + Vector2(SLOT.x / 2.0 - REIMPORT_SIZE - 4.0, -SLOT.y / 2.0 + 4.0)
-		_reimport_buttons[i].size = Vector2(REIMPORT_SIZE, REIMPORT_SIZE)
 	# Bloque de acciones pegado a los logos y separado del pie, centrado en la pantalla real.
 	# Sin el campo de Python (version publicada) los botones suben a ocupar su hueco.
 	var actions_y := 446.0 if _python.visible else 414.0
 	_python.position = _origin + Vector2(250, 404)
 	_python.size = Vector2(300, 32)
-	var actions: Array[Button] = [_resources, _android]
-	if _convert.visible: actions.push_front(_convert)
-	var total_width := 12.0 * (actions.size() - 1)
-	for action in actions:
-		action.size = Vector2(maxf(235.0, action.get_combined_minimum_size().x), 42)
-		total_width += action.size.x
-	var x := (800.0 - total_width) * 0.5
-	for action in actions:
-		action.position = _origin + Vector2(x, actions_y)
-		x += action.size.x + 12.0
+	# Four actions in one row: extract, extra dubs, Android .pck and APK download.
+	for index in 4:
+		var action: Button = [_convert, _voices, _apk, _download_apk][index]
+		action.position = _origin + Vector2(20 + index * 195, actions_y)
+		action.size = Vector2(175, 42)
 	_status.position = _origin + Vector2(90, actions_y + 52)
 	_status.size = Vector2(620, 24)
 	if _error_link.visible:
@@ -356,23 +310,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _browse(game: String, iso: bool) -> void:
-	if _busy or _leaving or _tools_failed or Paths.storage_error:
-		return
 	_pending_game = game
 	_pending_voice = false
 	_pending_yugi_update = false
 	_browse_media(Game.TITLES[game], iso)
-
-
-func _open_reimport_menu(game: String, button: Button) -> void:
-	_reimport_game = game
-	_reimport_menu.clear()
-	_reimport_menu.add_item("ISO", 0)
-	_reimport_menu.add_item(_folder_label(), 1)
-	_reimport_menu.set_item_tooltip(0, Tips.text("iso", Assets.lang) % Game.TITLES[game])
-	_reimport_menu.set_item_tooltip(1, Tips.text("folder", Assets.lang) % Game.TITLES[game])
-	var position := button.get_screen_position() + Vector2(0, button.size.y + 4)
-	_reimport_menu.popup(Rect2i(Vector2i(position), Vector2i.ZERO))
 
 
 func _browse_media(title: String, iso: bool) -> void:
@@ -398,23 +339,16 @@ func _voice_games() -> Array[String]:
 	return games
 
 
-func _refresh_actions() -> void:
-	_convert.visible = not _sources.is_empty()
-	_convert.disabled = _busy or _tools_failed or Paths.storage_error or _sources.is_empty()
-	_resources.disabled = _busy or Paths.storage_error or (not Paths.has_data() and _sources.is_empty())
-	_android.disabled = _busy
-	_apk.disabled = _busy or _tools_failed or Paths.storage_error or (not _has_pending() and not Paths.has_data())
-	_download_apk.disabled = _busy
+func _update_voices() -> void:
+	_voices.disabled = _busy or _tools_failed or Paths.storage_error or _voice_games().is_empty()
 
 
-func _open_android() -> void:
-	_refresh_actions()
-	_android_menu.popup_centered_clamped(Vector2i(375, 180), 0.85)
-
-
-func _open_resources() -> void:
-	var games: Array[String] = [] if _tools_failed else _voice_games()
-	_resource_import.open(games)
+func _open_voice_menu() -> void:
+	_voice_menu.clear()
+	for game in _voice_games():
+		_voice_menu.add_item(Game.TITLES[game], Game.GAMES.find(game))
+	var at := _voices.get_screen_position() + Vector2(0, _voices.size.y + 4)
+	_voice_menu.popup(Rect2i(Vector2i(at), Vector2i.ZERO))
 
 
 func _browse_voice(game: String) -> void:
@@ -438,19 +372,20 @@ func _selected(path: String) -> void:
 		if not packs.has(path):
 			packs.append(path)
 		_status.text = "%s · %s: %s" % [Game.TITLES[_pending_game], _copy(11), packs.size()]
-		_refresh_actions()
-		if _sources.is_empty():
-			_start.call_deferred()
+		_convert.disabled = not _has_pending() or _tools_failed
+		_convert.visible = true
+		_apk.disabled = _tools_failed or Paths.storage_error or not _has_pending()
 		return
 	if _pending_game == "yugi":
 		_yugi_update = ""
 	_sources[_pending_game] = path
 	_labels[_pending_game].text = path.get_file()
 	_labels[_pending_game].tooltip_text = path
-	_labels[_pending_game].show()
+	_convert.disabled = _tools_failed or not _has_pending()
+	_convert.visible = true
+	_apk.disabled = _tools_failed or Paths.storage_error or not _has_pending()
 	_status.text = "%s: %s" % [_copy(10), _sources.size()]
-	_refresh_actions()
-	_layout()
+	_update_voices()
 
 
 func _start(migrate := false, build_apk := false) -> void:
@@ -474,8 +409,6 @@ func _start(migrate := false, build_apk := false) -> void:
 	if Paths.has_data():
 		args.append_array(PackedStringArray(["--base", Paths.data_dir]))
 	for game in _sources:
-		if Paths.has_game(game):
-			args.append_array(PackedStringArray(["--reimport", game]))
 		args.append("--" + game)
 		args.append(str(_sources[game]))
 	if _yugi_update != "" and _sources.has("yugi"):
@@ -492,7 +425,10 @@ func _start(migrate := false, build_apk := false) -> void:
 	get_tree().auto_accept_quit = false
 	for button in _buttons:
 		button.disabled = true
-	_refresh_actions()
+	_convert.disabled = true
+	_apk.disabled = true
+	_download_apk.disabled = true
+	_voices.disabled = true
 	_back.disabled = true
 	_python.editable = false
 	_status.text = _text("apk_preparing") if build_apk else _copy(8)
@@ -521,17 +457,10 @@ func _process(_delta: float) -> void:
 	# Poll the viewport as other controls may consume mouse motion before _input.
 	var pointer := _pointer if DisplayServer.get_name() == "headless" else get_viewport().get_mouse_position()
 	var hit := _hit(pointer) if _pointer_inside and not _controls.panel_open else -1
-	var local_pointer := get_global_transform_with_canvas().affine_inverse() * pointer
-	var can_reimport: bool = _pointer_inside and not (_busy or _leaving or _tools_failed or Paths.storage_error or _controls.panel_open)
 	if hit >= 0 and not _keyboard_reveal:
 		_selected_index = hit
 	for i in _rows.size():
-		var installed := Paths.has_game(Game.GAMES[i])
-		var slot := Rect2(_logos[i].position - SLOT / 2.0, SLOT)
-		_reimport_buttons[i].visible = can_reimport and installed and slot.has_point(local_pointer)
-		if _reimport_buttons[i].visible and not _keyboard_reveal:
-			_selected_index = i
-		var available: bool = not installed and not _controls.panel_open
+		var available: bool = not Paths.has_game(Game.GAMES[i]) and not _controls.panel_open
 		var reveal: bool = available and (hit == i or (_keyboard_reveal and i == _selected_index))
 		var row := _rows[i].get_child(0)
 		for button: Button in row.get_children():
@@ -561,7 +490,10 @@ func _finish(result: Dictionary) -> void:
 	get_tree().auto_accept_quit = true
 	for button in _buttons:
 		button.disabled = false
-	_refresh_actions()
+	_convert.disabled = not _has_pending() or _tools_failed
+	_apk.disabled = _tools_failed or Paths.storage_error or (not _has_pending() and not Paths.has_data())
+	_download_apk.disabled = false
+	_update_voices()
 	_back.disabled = false
 	_python.editable = true
 	if int(result["code"]) != 0:

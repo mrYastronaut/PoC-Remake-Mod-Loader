@@ -4,6 +4,9 @@ extends RefCounted
 ## Native flags are read from native_system, including Joey's original byte +10ee.
 
 const MAX_COPIES := 3
+## Copias por mazo de las cartas de mods que lo piden con "limit" en cards.json (internal_id ->
+## copias). Las rellena CardDB al cargar los mods; valen en todos los juegos y con LIMITED desactivado.
+static var mod_limits := {}
 const OLD_FORBIDDEN := [1902, 1903, 1910, 1911, 1912, 1920, 1921, 1922, 1923]
 const OLD_LIMITED := [20, 17, 19, 16, 18, 1010, 968, 1027, 335, 336, 1008, 1056,
 	1071, 1070, 1081, 1077, 1068, 1106, 1065, 347, 1221, 573, 1154, 751, 1150,
@@ -19,6 +22,8 @@ const COPY_VARIANTS := [[0, 2000], [14, 2014], [34, 1210, 2034], [37, 2037],
 
 
 static func copy_limit(game: String, id: int, native: Dictionary) -> int:
+	if mod_limits.has(id):
+		return int(mod_limits[id])
 	if game == "joey":
 		if id in JOEY_FORBIDDEN:
 			var block := Marshalls.base64_to_raw(str(native.get("block", "")))

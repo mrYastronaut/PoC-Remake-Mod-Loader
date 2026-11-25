@@ -13,6 +13,16 @@ extends RefCounted
 
 const MAX_INDEX := 0x45b
 
+## Ultimo indice valido de id_of(); ModCards lo sube cuando amplia las tablas.
+var max_index := MAX_INDEX
+## internal_id -> clave de efecto ("effect" de cards.json) de las cartas de mods que lo piden;
+## la implementa un script del mod (ModScript).
+var mod_effects := {}
+## internal_id de una carta de mod -> ids de cartas originales que pueden invocarla desde el
+## cementerio ("revive_by" de cards.json).
+var mod_revive := {}
+## Scripts de los mods activos: [{"mod": id, "path": ruta}] (ver ModScripts).
+var mod_scripts: Array = []
 var ids := PackedInt32Array()
 var int_ids := PackedInt32Array()
 var props := PackedInt64Array()
@@ -39,13 +49,16 @@ func load_from(data_dir: String) -> bool:
 	packs.resize(pack_bytes.size() / 2)
 	for i in packs.size():
 		packs[i] = pack_bytes.decode_u16(i * 2)
+	## Cartas de mods (ver ModCards): amplia ids/prop/pack/int_ids tras las tablas base.
+	ModCards.apply_to_tables(self, ModCards.active_storage)
+	mod_scripts = ModScripts.active_scripts(ModCards.active_storage)
 	return true
 
 
 ## FUN_00401a70
 func id_of(index: int) -> int:
 	index &= 0xffff
-	if index > MAX_INDEX or index >= ids.size():
+	if index > max_index or index >= ids.size():
 		return 0xffff
 	return ids[index]
 

@@ -46,7 +46,6 @@ var import_mode := false
 var logo_y := LOGO_Y
 var heading_y := TITLE_Y
 var _language := OptionButton.new()
-const Tips = preload("res://scenes/launcher/tooltip_texts.gd")
 var _setup_button := Button.new()
 var _release_footer := preload("res://scenes/launcher/release_footer.gd").new()
 
@@ -98,9 +97,6 @@ func _ready() -> void:
 	CloudSync.sync_now(true)
 	Audio.stop_music()
 	_music.stream = MUSIC
-	_music.bus = Audio.LAUNCHER_MUSIC_BUS
-	_controls.changed.connect(_update_music_mute)
-	_update_music_mute()
 	_music.finished.connect(_start_music)
 	add_child(_music)
 	_start_music()
@@ -172,8 +168,7 @@ func _select_language(index: int) -> void:
 
 func _language_updated() -> void:
 	_language.select(Assets.LANGUAGES.keys().find(Assets.lang))
-	_language.tooltip_text = Tips.text("language", Assets.lang)
-	_setup_button.tooltip_text = Tips.text("import", Assets.lang)
+	_language.tooltip_text = Assets.port_label(4)
 	_setup_button.text = "ISO / " + _folder_label()
 	if _release_footer.is_node_ready():
 		_release_footer.refresh()
@@ -227,10 +222,6 @@ func _update_music() -> void:
 	if fade_in > 0.0:
 		level = minf(level, pos / fade_in)
 	_music.volume_db = _volume_db(level)
-
-
-func _update_music_mute() -> void:
-	Audio.set_launcher_music_muted(_controls.level() == 0.0)
 
 
 func _choose(index: int) -> void:

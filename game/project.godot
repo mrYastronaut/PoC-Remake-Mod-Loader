@@ -11,16 +11,16 @@ config_version=5
 [application]
 
 config/name="Power of Chaos Remake"
-config/version="0.1.0-alpha.44"
-config/icon="res://assets/icons/launcher.svg"
-config/windows_native_icon="res://assets/icons/launcher.ico"
 config/description="Reimplementación en Godot de Power of Chaos (Yugi, Kaiba y Joey). Requiere los recursos de las copias del usuario."
+config/version="0.1.0-alpha.40"
 run/main_scene="res://scenes/boot/boot.tscn"
-config/features=PackedStringArray("4.7", "GL Compatibility")
 config/use_custom_user_dir=true
 config/custom_user_dir_name="PoCRemake"
-boot_splash/show_image=false
+config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/bg_color=Color(0.03, 0.03, 0.08, 1)
+boot_splash/show_image=false
+config/icon="res://assets/icons/launcher.svg"
+config/windows_native_icon="res://assets/icons/launcher.ico"
 
 [autoload]
 
@@ -47,7 +47,6 @@ desktop_client_secret=""
 
 [debug]
 
-file_logging/enable_file_logging=false
 file_logging/enable_file_logging.pc=false
 
 [display]
@@ -58,7 +57,6 @@ window/size/mode=2
 window/size/window_width_override=1200
 window/size/window_height_override=900
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 
 [input_devices]
 
@@ -68,5 +66,4 @@ pointing/emulate_mouse_from_touch=false
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-textures/canvas_textures/default_texture_filter=1
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)

@@ -1,0 +1,9 @@
+{
+  "id": "dummy-card-mod",
+  "name": "Dummy Card Mod",
+  "version": "0.1.0",
+  "api": 1,
+  "games": ["yugi"],
+  "author": "you",
+  "description": "Smoke test: one vanilla monster with placeholder art. The deck editor only lists cards you own, so start the game once with --unlock-all."
+}

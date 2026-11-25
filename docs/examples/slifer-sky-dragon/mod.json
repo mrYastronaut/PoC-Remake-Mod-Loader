@@ -1,0 +1,14 @@
+{
+  "id": "slifer-sky-dragon",
+  "name": "Slifer the Sky Dragon",
+  "version": "2.0.0",
+  "api": 1,
+  "games": [
+    "yugi"
+  ],
+  "author": "Yastronaut",
+  "description": "Adds Slifer the Sky Dragon for the player in the Yugi game: a rare reward for beating Yugi (about 5% per reward card, and never again once owned), limited to 1 copy per deck. 1000 ATK/DEF per card in hand, a 3-Tribute Normal Summon, -2000 ATK (destroy at 0) on monsters the opponent summons in Attack Position, and if Special Summoned (Monster Reborn, Call of the Haunted, The Shallow Grave, Premature Burial, Spear Cretin, Gilasaurus) he returns to the Graveyard in the End Phase. This mod runs code: turn on 'Allow mods that run code' in the Mods screen.",
+  "scripts": [
+    "scripts/slifer.gd"
+  ]
+}

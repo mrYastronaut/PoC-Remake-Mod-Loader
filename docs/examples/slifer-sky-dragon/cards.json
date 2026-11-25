@@ -1,0 +1,36 @@
+[
+  {
+    "key": "slifer",
+    "effect": "slifer",
+    "password": "00000000",
+    "names": {
+      "spa": "Slifer el dragón de cielo",
+      "eng": "Slifer the Sky Dragon",
+      "fra": "Slifer, le Dragon céleste",
+      "ger": "Schleifer, Himmelsdrache",
+      "ita": "Slifer Drago del Cielo",
+      "jpn": "オシリスの天空竜"
+    },
+    "descriptions": {
+      "eng": "Requires 3 Tributes to Normal Summon (cannot be Normal Set). This card's Normal Summon cannot be negated. When Normal Summoned, cards and effects cannot be activated. Once per turn, during the End Phase, if this card was Special Summoned: Send it to the GY. Gains 1000 ATK/DEF for each card in your hand. If a monster(s) is Normal or Special Summoned to your opponent's field in Attack Position: That monster(s) loses 2000 ATK, then if its ATK has been reduced to 0 as a result, destroy it."
+    },
+    "category": "monster",
+    "atk": 0,
+    "defense": 0,
+    "level": 10,
+    "attribute": "divine",
+    "type_id": 24,
+    "monster_kind": "effect",
+    "image": "slifer.png",
+    "limit": 1,
+    "reward_weight": 40,
+    "revive_by": [
+      1008,
+      1095,
+      1159,
+      1160,
+      1520,
+      1116
+    ]
+  }
+]

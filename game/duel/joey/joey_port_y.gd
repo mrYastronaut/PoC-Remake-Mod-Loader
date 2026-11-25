@@ -261,12 +261,14 @@ var _jy_arities: Dictionary = {}
 
 
 func _jy_effect(address: int, args: Array) -> int:
-	var name := StringName("f%06x" % address)
+	var name := "f%06x" % address
 	if not _jy_arities.has(name):
-		if not has_method(name):
-			return _unported(address)
-		# Consultar el método concreto evita enumerar toda la jerarquía en el turno.
-		_jy_arities[name] = get_method_argument_count(name)
+		for method in get_method_list():
+			if method.name == name:
+				_jy_arities[name] = method.args.size()
+				break
+	if not _jy_arities.has(name):
+		return _unported(address)
 	var arity := int(_jy_arities[name])
 	var actual := args.slice(0, arity)
 	while actual.size() < arity:

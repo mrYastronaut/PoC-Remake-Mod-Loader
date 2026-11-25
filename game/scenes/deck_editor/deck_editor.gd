@@ -393,7 +393,7 @@ func _native_sort_key(card: Dictionary, criterion: String) -> int:
 		"type": return kind
 		"attribute":
 			if _sort_properties.is_empty():
-				_sort_properties = FileAccess.get_file_as_bytes(Assets.resolve("common/bin/card_prop.bin"))
+				_sort_properties = ModCards.extend_prop_bytes(FileAccess.get_file_as_bytes(Assets.resolve("common/bin/card_prop.bin")), CardDB.mod_cards)
 			return _sort_properties.decode_u32(index * 4) >> 29 if index * 4 + 4 <= _sort_properties.size() else 0
 		"atk": return -_native_deck_atk(card)
 		"def": return 0 if kind in [21,22,23] else -(4000 if kind == 24 else int(card.get("defense", 0)))
@@ -885,15 +885,8 @@ func _buttons() -> Dictionary:
 	if _bag_progress != 0:
 		var control_y := -40 + maxi(0, _bag_progress - 128) * 40 / 128
 		out["filter_label"] = {"rect": Rect2(_kaban_x() + 46, 4 + control_y, 90, 22), "on": null, "push": null}
-		out["sort"] = {"rect": _sort_button_rect(control_y), "on": null, "push": null}
+		out["sort"] = {"rect": Rect2(_kaban_x() + 146, control_y, 30, 31), "on": null, "push": null}
 	return out
-
-
-func _sort_button_rect(control_y: int) -> Rect2:
-	# El marco dorado de Joey mide 28x27. Abierto, su icono de 22x21 empieza en (734, 9).
-	if game == "joey":
-		return Rect2(_kaban_x() + 147, control_y + 6, 28, 27)
-	return Rect2(_kaban_x() + 146, control_y, 30, 31)
 
 
 func _cap_button(script: String, pos: Vector2) -> Dictionary:
@@ -1204,7 +1197,7 @@ func _draw_trunk_details(card: Dictionary, thumb_pos: Vector2) -> void:
 func _trunk_icon_ops(card: Dictionary, thumb_pos: Vector2) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	if _sort_properties.is_empty():
-		_sort_properties = FileAccess.get_file_as_bytes(Assets.resolve("common/bin/card_prop.bin"))
+		_sort_properties = ModCards.extend_prop_bytes(FileAccess.get_file_as_bytes(Assets.resolve("common/bin/card_prop.bin")), CardDB.mod_cards)
 	var index := int(card.index)
 	var prop := _sort_properties.decode_u32(index*4)
 	var kind := (prop >> 20) & 31
@@ -1274,13 +1267,10 @@ func _draw_trunk_header() -> void:
 	var font: Layout = _scripts["font"]
 	# 44d0c0/44e610/46ddb0: fondo con gemas, fijo en620; los botones son capas On/Push.
 	draw_texture(_script_tex("kaban_list", 2), Vector2(620, _trunk_header_background_y()))
-	var sort_strip := _tex(font.resource(11))  # icon_sort: 14 iconos.
+	var sort_strip := _tex(font.resource(11))  # icon_sort: 14 iconos de 30
 	var active: int = SORT_ICON[_sort]
 	var sw := sort_strip.get_width() / 14.0
-	var button := _sort_button_rect(control_y)
-	var icon_size := Vector2(sw, sort_strip.get_height())
-	var icon_position := button.get_center() - icon_size / 2.0 if game == "joey" else button.position
-	draw_texture_rect_region(sort_strip, Rect2(icon_position, icon_size),
+	draw_texture_rect_region(sort_strip, Rect2(Vector2(_kaban_x() + 146, control_y), Vector2(sw, sort_strip.get_height())),
 			Rect2(active * sw, 0, sw, sort_strip.get_height()))
 
 
@@ -1363,8 +1353,7 @@ func _toggle_window() -> void:
 	_bag_direction = 2 if _bag_progress != 0 else 1
 	_expanded = _bag_direction == 1
 	_relayout()
-	# Y447800/Ka448850/Jo46cea0 piden card_open al abrir o cerrar la bolsa.
-	Audio.play_sfx("%s/voice/internal/card_open.wav" % game)
+	Audio.play_sfx("%s/voice/internal/decide.wav" % game)
 
 
 # --- reglas del original -------------------------------------------------------------------
@@ -1597,11 +1586,11 @@ func _open_sort(at := Vector2(-1, -1)) -> void:
 		var b: Array = SORT_BUTTONS[i]
 		var location: Vector2 = SORT_POS.get(game, SORT_POS.yugi)[i]
 		d.add_button(b[0], location, _script_tex(b[1], 0), _script_tex(b[1], 1))
-	d.closing.connect(func(id: String) -> void:
-		Audio.play_sfx("%s/voice/internal/%s.wav" % [game, "return" if id == "cancel" else "decide"]))
 	d.closed.connect(func(id: String) -> void:
 		_modal = null
-		if id != "cancel":
+		if id == "cancel":
+			Audio.play_sfx("%s/voice/internal/return.wav" % game)
+		else:
 			if at.x < 0: _sort = id
 			var changed: Array = []
 			for zone in ZONES:
@@ -1610,7 +1599,8 @@ func _open_sort(at := Vector2(-1, -1)) -> void:
 					changed.append(zone)
 			_sort_deck(changed)
 			_relayout()
-			_apply_view())
+			_apply_view()
+			Audio.play_sfx("%s/voice/internal/decide.wav" % game))
 	if at.x < 0:
 		Audio.play_sfx("%s/voice/internal/decide.wav" % game)
 	_open_modal(d)

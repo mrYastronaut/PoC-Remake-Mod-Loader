@@ -103,10 +103,10 @@ static func s16(v: int) -> int:
 # --- K: lectores de las tablas de cartas (402290-402fb0) ----------------------------------
 # Cargan data/bin/CARD_*.bin la primera vez (402340): en el port, CardTables.
 
-## FUN_004022e0: id de la carta del indice; 0xffff por encima de 0x45b.
+## FUN_004022e0: id de la carta del indice; 0xffff por encima de cards.max_index (0x45b en las tablas base).
 func f4022e0(index: int) -> int:
 	index &= 0xffff
-	if index > 0x45b or index >= cards.ids.size():
+	if index > cards.max_index or index >= cards.ids.size():
 		return 0xffff
 	return cards.ids[index]
 

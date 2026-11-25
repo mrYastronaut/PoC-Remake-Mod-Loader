@@ -1,5 +1,5 @@
 class_name Duel
-extends DuelCmds
+extends ModDuel
 ## Motor de duelo: preparacion de la partida y ejecucion de comandos.
 ##
 ## Uso para reproducir una repeticion:
@@ -12,10 +12,6 @@ const IMAGE_FILE := "common/duel/yugi_image.bin"
 ## DAT_005af770 / DAT_005af774: opciones y semilla de la partida (cabecera del .ydr).
 var options := 0
 var seed := 0
-
-
-func hand_face_up(p: int) -> bool:
-	return f5450e0(p) != 0
 
 
 ## Carga tablas de cartas e imagen de datos. Devuelve null si falta algo en data/.
@@ -234,7 +230,6 @@ func f541850(opts: int) -> int:
 
 ## FUN_0053b6f0: limpia el estado del duelo.
 func f53b6f0() -> int:
-	_animation_request.clear()
 	m.clear(0xa16180, 8)
 	m.clear(0xa11940, 0x1af8)
 	m.clear(0xa161a0, 0x34)

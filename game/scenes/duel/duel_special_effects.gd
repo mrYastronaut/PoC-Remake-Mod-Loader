@@ -31,8 +31,7 @@ static func coin_state(counter: int, count: int, n: int, result: int, source: Ve
 	if q < -64: alpha = q * 4 + 512
 	elif end > -64: alpha = -end * 4
 	var bit := (result >> n) & 1
-	# 43b49a/43bbba: después del giro, el bit visual cero muestra la celda 13.
-	var face := 13 if q > 0 and bit == 0 else 6
+	var face := 13 if q > 0 and bit != 0 else 6
 	if q > 0 and q < 256: face = (int((70 if bit else 63) * q / 256) + 6) % 14
 	return {"q": q, "end": end, "visible": q > -128, "pos": pos, "elevation": int(wave * -50 / 256), "zoom": zoom, "alpha": clampi(alpha, 0, 256), "face": face, "shadow": [1,2,3,3,2,1,0,1,2,3,3,2,1,0][face]}
 
@@ -278,8 +277,7 @@ static func _exodia(owner: Node2D, event: Dictionary, frame: int) -> void:
 	if counter >= 836:
 		if _ball_shader == null:
 			_ball_shader = Shader.new()
-			# Fragment COLOR already contains the sampled sprite, including its alpha.
-			_ball_shader.code = "shader_type canvas_item; varying vec2 screen_pos; uniform float hole_radius; void vertex(){screen_pos=(MODEL_MATRIX*vec4(VERTEX,0.0,1.0)).xy;} void fragment(){vec2 d=abs(screen_pos-vec2(400.0,409.0)); if(d.x<hole_radius && d.y<hole_radius){discard;} }"
+			_ball_shader.code = "shader_type canvas_item; varying vec2 screen_pos; uniform float hole_radius; void vertex(){screen_pos=(MODEL_MATRIX*vec4(VERTEX,0.0,1.0)).xy;} void fragment(){vec2 d=abs(screen_pos-vec2(400.0,409.0)); if(d.x<hole_radius && d.y<hole_radius){discard;} COLOR=texture(TEXTURE,UV)*COLOR; }"
 		# Surface1 is NOT cleared between attack ticks. Reconstruct its retained
 		# draws, or the growing clip exposes a rectangular hole in the attack.
 		for birth in range(836, mini(counter, 1024) + 1, 4):

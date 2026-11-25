@@ -1024,10 +1024,8 @@ func f548060() -> int:
 				return 0
 			f541cb0(DuelMem.MOVING_CARD, zone)
 			f543780(p, z)
-			var entry := m.u16(DuelMem.MOVING_CARD)
-			present_card_motion(3, entry & 0xfff, animation_location(p, 0, z),
-				animation_location((entry >> 12) & 1, DuelMem.LOC_BANISH, 1, 2), "field_to_banish",
-				{"p": p, "zone": z, "card": f401a70(entry & 0xfff), "flags": m.u8(DuelMem.MOVING_CARD + 6)})
+			present("field_to_banish", {"p": p, "zone": z,
+					"card": f401a70(m.u32(DuelMem.MOVING_CARD) & 0xfff), "flags": m.u8(DuelMem.MOVING_CARD + 6)})
 			next_step()
 		1:
 			if not anim_busy():   # FUN_00437860
@@ -1052,11 +1050,8 @@ func f548140() -> int:
 			m.set_u32(zone, m.u32(zone) | 0x100000)
 			f541cb0(DuelMem.MOVING_CARD, zone)
 			f543780(p, z)
-			var flags := m.u8(DuelMem.MOVING_CARD + 6)
-			var index := m.u16(DuelMem.MOVING_CARD) & 0xfff
-			present_card_motion(3, index, animation_location(p, 0, z, flags),
-				animation_location(p, DuelMem.LOC_BANISH, 1, 2), "field_to_banish",
-				{"p": p, "zone": z, "card": f401a70(index), "flags": flags})
+			present("field_to_banish", {"p": p, "zone": z,
+					"card": f401a70(m.u32(DuelMem.MOVING_CARD) & 0xfff), "flags": m.u8(DuelMem.MOVING_CARD + 6)})
 			next_step()
 			return 0
 	finish()
@@ -1077,17 +1072,9 @@ func f548280() -> int:
 		1:
 			f541cb0(DuelMem.MOVING_CARD, zone)
 			f541be0(p, z)
-			var entry := m.u16(DuelMem.MOVING_CARD)
-			var index := entry & 0xfff
-			var cid := f401a70(index)
+			var cid := f401a70(m.u32(DuelMem.MOVING_CARD) & 0xfff)
 			if not (cid > 0x77f and cid < 2000):
-				var owner := (entry >> 12) & 1
-				var to := animation_location(owner, DuelMem.LOC_FUSION, 1) if f542280(index) != 0 else \
-					animation_location(owner, DuelMem.LOC_HAND, m.u8(DuelMem.pl(owner) + DuelMem.P_HAND_N), f5450e0(owner) << 1)
-				present_card_motion(3, index, animation_location(p, 0, z, m.u8(zone + 6)), to,
-					"field_to_hand", {"p": p, "zone": z, "card": cid})
-			else:
-				present("field_remove", {"p": p, "zone": z})
+				present("field_to_hand", {"p": p, "zone": z, "card": cid})
 			next_step()
 		_:
 			f5437c0(p, z)
@@ -1109,16 +1096,9 @@ func f5484b0() -> int:
 		1:
 			f541cb0(DuelMem.MOVING_CARD, zone)
 			m.set_u32(zone, m.u32(zone) & 0xfffbffff)
-			var entry := m.u16(DuelMem.MOVING_CARD)
-			var index := entry & 0xfff
-			var cid := f401a70(index)
+			var cid := f401a70(m.u32(DuelMem.MOVING_CARD) & 0xfff)
 			if not (cid > 0x77f and cid < 2000):
-				var fusion := f542280(index) != 0
-				present_card_motion(3, index, animation_location(p, 0, z, m.u8(zone + 6)),
-					animation_location((entry >> 12) & 1, DuelMem.LOC_FUSION if fusion else DuelMem.LOC_DECK, int(fusion)),
-					"field_to_deck", {"p": p, "zone": z, "card": cid})
-			else:
-				present("field_remove", {"p": p, "zone": z})
+				present("field_to_deck", {"p": p, "zone": z, "card": cid})
 			next_step()
 		_:
 			f541be0(p, z)
@@ -1140,13 +1120,9 @@ func f548730() -> int:
 			else:
 				finish()
 		1:
-			var source := f5419b0(sp, sz, 0)
-			var flags := m.u8(source + 6)
-			f541cb0(DuelMem.MOVING_CARD, source)
-			var index := m.u16(DuelMem.MOVING_CARD) & 0xfff
-			present_card_motion(3, index, animation_location(sp, sz, 0, flags),
-				animation_location(dp, dz, 0, flags & (3 if dz < 5 else 2)), "zone_move",
-				{"from": cmd_a(), "to": cmd_b(), "card": f401a70(index)})
+			f541cb0(DuelMem.MOVING_CARD, f5419b0(sp, sz, 0))
+			present("zone_move", {"from": cmd_a(), "to": cmd_b(),
+					"card": f401a70(m.u32(DuelMem.MOVING_CARD) & 0xfff)})
 			next_step()
 		_:
 			var dst := 0xa1195c + (dp & 1) * PS + dz * 0x94
@@ -1178,9 +1154,7 @@ func f548910() -> int:
 				finish()
 		1:
 			f541cb0(DuelMem.MOVING_CARD, za)
-			present_card_motion(6, 0,
-				animation_field_location(ap, az, m.u8(zb + 6) & (3 if bz < 5 else 2)),
-				animation_field_location(bp, bz, m.u8(za + 6)), "zone_swap", {"a": cmd_a(), "b": cmd_b()})
+			present("zone_swap", {"a": cmd_a(), "b": cmd_b()})
 			next_step()
 		_:
 			var tmp := m.local(0x94)

@@ -309,6 +309,16 @@ func _ensure_startup_deck(game: String) -> bool:
 	var by_index := {}
 	for card: Dictionary in CardDB.cards:
 		by_index[int(card["index"])] = int(card["internal_id"])
+	# Las cartas de mods no caben en el bloque nativo (ModSave): se apartan y se devuelven.
+	var mod_ids := ModSave.ids_of(CardDB.mod_cards)
+	var mod_collection := ModSave.split_counts(data["collection"], mod_ids)
+	var mod_seen := ModSave.split_counts(data.get("seen", {}), mod_ids)
+	var previous_full: Dictionary = data["decks"].get(game, {})
+	var mod_deck := ModSave.strip_deck(previous_full, mod_ids)
+	if mod_deck["count"] > 0 and mod_deck["deck"].get("main", []).size() < 40:
+		# Sin sus cartas de mods el mazo no pasaria la validacion nativa y se sustituiria.
+		_startup_checked[game] = true
+		return false
 	# El mazo se valida aparte: sus contadores pueden ser precisamente los invalidos.
 	var source := data.duplicate()
 	source["decks"] = {}
@@ -320,16 +330,16 @@ func _ensure_startup_deck(game: String) -> bool:
 		# 44aa00: ante 0xb se conserva la poda; no se concede el mazo inicial.
 		var native: Dictionary = data.get("native_system", {}).duplicate()
 		native["block"] = Marshalls.raw_to_base64(block)
-		var previous: Dictionary = data.decks[game]
-		var result: Dictionary = preload("res://core/native_deck_startup.gd").resolve_joey(previous, data.collection, native)
+		var previous: Dictionary = mod_deck["deck"]
+		var result: Dictionary = preload("res://core/native_deck_startup.gd").resolve_joey(previous, mod_collection["rest"], native)
 		if result.deck == previous:
 			_startup_checked[game] = true
 			return false
-		if not _preserve_startup_deck(game, previous, "native_startup_prune"):
+		if not _preserve_startup_deck(game, previous_full, "native_startup_prune"):
 			persistence_error = "No se pudo preservar el mazo anterior de " + game
 			push_error(persistence_error)
 			return false
-		data["decks"][game] = result.deck
+		data["decks"][game] = ModSave.restore_deck(result.deck, mod_deck["removed"])
 		_startup_checked[game] = true
 		return true
 	var duel: Object = _duel_script().create(Paths.data_dir)
@@ -338,22 +348,24 @@ func _ensure_startup_deck(game: String) -> bool:
 		return false
 	for i in block.size():
 		duel.m.set_u8(0xa10120 + i, block[i])
-	var previous: Dictionary = data.decks[game]
+	var previous: Dictionary = mod_deck["deck"]
 	var resolved := _resolve_startup_deck(duel, game, previous)
 	for i in block.size():
 		block[i] = duel.m.u8(0xa10120 + i)
 	SystemDat.seal(block)
 	var projected := SystemDat.to_save(block, by_index)
-	if resolved == previous and projected.collection == data.collection and projected.seen == data.get("seen", {}):
+	if resolved == previous and projected.collection == mod_collection["rest"] and projected.seen == mod_seen["rest"]:
 		_startup_checked[game] = true
 		return false
-	if resolved != previous and not _preserve_startup_deck(game, previous):
+	if resolved != previous and not _preserve_startup_deck(game, previous_full):
 		persistence_error = "No se pudo preservar el mazo anterior de " + game
 		push_error(persistence_error)
 		return false
 	data["collection"] = projected.collection
+	data["collection"].merge(mod_collection["mod"])
 	data["seen"] = projected.seen
-	data["decks"][game] = resolved
+	data["seen"].merge(mod_seen["mod"])
+	data["decks"][game] = previous_full if resolved == previous else ModSave.restore_deck(resolved, mod_deck["removed"])
 	var native: Dictionary = data.get_or_add("native_system", {})
 	native.merge(projected.native_system, true)
 	_startup_checked[game] = true

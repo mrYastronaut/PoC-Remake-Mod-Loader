@@ -28,6 +28,11 @@ var _textures := {}     # ruta absoluta -> Texture2D
 var _layouts := {}      # ruta absoluta -> Layout
 var _missing := {}      # Un aviso por recurso ausente, aunque se solicite cada fotograma.
 var _voice_packs := {}
+## Mods aplicados al indice (ver ModRegistry) y lo que han reemplazado o rechazado.
+var active_mods: Array = []
+var mod_skipped: Array = []
+var mod_overrides: Array = []   # {path, by, replaced: "base" | id de otro mod}
+var mod_rejected: Array = []    # {path, by, reason}
 
 
 func _ready() -> void:
@@ -41,6 +46,7 @@ func reindex() -> void:
 	_missing.clear()
 	if DirAccess.dir_exists_absolute(Paths.data_dir):
 		_scan(Paths.data_dir, "")
+	_apply_mods()
 	_voice_packs.clear()
 	var voices: Variant = read_json("voice_manifest.json")
 	if voices is Dictionary:
@@ -168,6 +174,46 @@ func read_json(rel_path: String) -> Variant:
 	if path == "":
 		return null
 	return JSON.parse_string(FileAccess.get_file_as_string(path))
+
+
+## Superpone los mods activos al indice base: el ultimo de la lista gana.
+func _apply_mods() -> void:
+	active_mods.clear()
+	mod_skipped.clear()
+	mod_overrides.clear()
+	mod_rejected.clear()
+	ModCards.active_storage = "" if Paths.storage_error else Paths.storage_dir
+	if Paths.storage_error:
+		return
+	var owner := {}   # ruta relativa en minusculas -> id del mod que la aporto
+	for mod: Dictionary in ModRegistry.active(Paths.storage_dir, mod_skipped):
+		active_mods.append(mod)
+		_scan_mod(mod, mod["dir"].path_join("assets"), "", owner)
+
+
+func _scan_mod(mod: Dictionary, abs_dir: String, rel_dir: String, owner: Dictionary) -> void:
+	var dir := DirAccess.open(abs_dir)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var name := dir.get_next()
+	while name != "":
+		var abs_path := abs_dir.path_join(name)
+		var rel := name if rel_dir == "" else rel_dir + "/" + name
+		if dir.current_is_dir():
+			_scan_mod(mod, abs_path, rel, owner)
+		else:
+			var key := rel.to_lower()
+			if ModRegistry.is_protected(key):
+				mod_rejected.append({"path": rel, "by": mod["id"], "reason": "tabla protegida"})
+			elif ModRegistry.wrong_game(key, mod["manifest"]):
+				mod_rejected.append({"path": rel, "by": mod["id"], "reason": "juego no declarado"})
+			else:
+				if _index.has(key):
+					mod_overrides.append({"path": rel, "by": mod["id"], "replaced": owner.get(key, "base")})
+				_index[key] = abs_path
+				owner[key] = mod["id"]
+		name = dir.get_next()
 
 
 func _scan(abs_dir: String, rel_dir: String) -> void:

@@ -68,7 +68,6 @@ var native_ticks := 0
 var frame_pressed := 0
 ## Coordenadas de mesa: jugador local siempre abajo; el motor y la red son absolutos.
 var local_native_player := 0
-var focused_excluded_player := -1
 var _battle_player := 0
 var _battle_attacker := -1
 var _done := false
@@ -96,16 +95,15 @@ static func create_native(data_dir: String) -> JoeyPresentationAdapter:
 	var native := NativeSessionEngine.new(tables)
 	if not native.load_data(data_dir):
 		return null
+	var image := FileAccess.get_file_as_bytes(data_dir.path_join(Duel.IMAGE_FILE))
+	if image.is_empty():
+		return null
 	var view := JoeyPresentationAdapter.new(native.cards)
 	view.engine = native
 	native.recording_owner = weakref(view)
 	view.rules_game = "joey"
 	view.native_version = 1300
-	# The shared renderer reads a projection written by Joey. Keep the legacy
-	# view image when available, but Joey's engine needs only its own data.
-	var legacy_image := data_dir.path_join(Duel.IMAGE_FILE)
-	if FileAccess.file_exists(legacy_image):
-		view.m.load_image(FileAccess.get_file_as_bytes(legacy_image))
+	view.m.load_image(image)
 	view.joey_zone_counters.resize(24)
 	view.joey_zone_status.resize(24)
 	return view
@@ -153,7 +151,6 @@ func start_normal(decks: Array[Dictionary], opts: int, rand_seed: int, mode := G
 	engine.unported_calls.clear()
 	native_ticks = 0
 	frame_pressed = 0
-	focused_excluded_player = -1
 	_battle_player = 0
 	_battle_attacker = -1
 	executed = 0
@@ -326,11 +323,6 @@ func set_frame_input(pressed: int, held: int, hover: Dictionary, phase_hover: in
 		engine.ui_set_geometry(p, xs)
 
 
-## 45e3d0 no muestra ayuda si el motor ya atendió el objeto señalado.
-func cursor_acknowledged() -> bool:
-	return engine.m.u8(0x5f2fe0) != 0
-
-
 ## Entrada P: sólo objetos que existen en la mesa dibujada, nunca zonas de reglas.
 ## 4189d0 normaliza las cinco casillas de cada fila en (base, índice).
 func query_visual_object(kind: String, p: int, area: int, i: int, visual: Node2D) -> Dictionary:
@@ -438,11 +430,6 @@ func frame() -> bool:
 	_native_event_pos = 0
 	_dispatch_mail()
 	_done = engine.f5bc700() != 0
-	# 43d670 usa la marca de reconocimiento del objeto de la mesa, no el
-	# estado físico del botón (se borra al cargar la entrada del tick siguiente).
-	focused_excluded_player = -1
-	if cursor_acknowledged() and engine.m.u32(0xa55048) == DuelMem.LOC_BANISH:
-		focused_excluded_player = _view_player(engine.m.u32(0xa55044) & 1)
 	engine.flush_projection()
 	native_ticks += 1
 	synchronize_view()
@@ -468,11 +455,6 @@ func winner() -> int:
 	if engine == null: return 0
 	# f002 ya transforma el resultado del rival (3-value); siempre es local.
 	return (engine.m.u8(JoeyMem.TURN) >> 6) & 3
-
-
-## Joey 41e7b0 consulta 56d3c0 para la mano opuesta al jugador local.
-func hand_face_up(p: int) -> bool:
-	return p == 0 or (joey_player_flags[p] & 8) != 0
 
 
 func synchronize_view() -> void:
@@ -678,6 +660,10 @@ func _collect_native_events() -> void:
 						"flags": int(ref & 0x4000 != 0) | (int(ref & 0x8000 != 0) << 1),
 						"card": engine.f4022e0(int(args[1])) & 0xffff}
 					if str(event.kind) == "44f630": effect["native_base_visible"] = true
+					# a5 (40a3c0) escribe la zona en el paso0 y crea su objeto con el buzón5 tras
+					#8 ticks que en el original transcurren durante el efecto.
+					if str(event.kind) == "44fcc0" and engine.m.u16(JoeyMem.CMD) & 0x7fff == 0xa5:
+						effect["native_object_pending"] = true
 					_emit(kinds[str(event.kind)], effect)
 			"450260":
 				var ref := engine.m.u16(int(args[2]))

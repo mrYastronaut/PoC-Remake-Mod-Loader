@@ -1,0 +1,15 @@
+[
+  {
+    "key": "test_dragon",
+    "names": { "eng": "Test Dragon", "spa": "Dragón de Prueba" },
+    "descriptions": { "eng": "A vanilla test monster added by a mod." },
+    "category": "monster",
+    "atk": 1800,
+    "defense": 1200,
+    "level": 5,
+    "attribute": "dark",
+    "type_id": 1,
+    "monster_kind": "normal",
+    "image": "test_dragon.png"
+  }
+]

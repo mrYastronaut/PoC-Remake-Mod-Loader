@@ -8,6 +8,7 @@ const TITLES := {"yugi": "Yugi the Destiny", "kaiba": "Kaiba the Revenge", "joey
 # El ultimo nodo recibe los atajos antes que las escenas y sus SubViewports.
 class WindowShortcuts:
 	extends Node
+	var _windowed_mode := Window.MODE_WINDOWED
 	func _input(event: InputEvent) -> void:
 		if not event is InputEventKey: return
 		var key: int = event.keycode if event.keycode != 0 else event.physical_keycode
@@ -15,7 +16,12 @@ class WindowShortcuts:
 		# Consumir tambien la repeticion: Alt+Enter no confirma una carta o un dialogo.
 		get_tree().root.set_input_as_handled()
 		if event.pressed and not event.echo:
-			LauncherSettings.toggle_fullscreen(get_tree().root)
+			var window := get_tree().root
+			if window.mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN]:
+				window.mode = _windowed_mode
+			else:
+				_windowed_mode = window.mode
+				window.mode = Window.MODE_FULLSCREEN
 
 var _window_shortcuts := WindowShortcuts.new()
 var _mobile_pointer: CanvasLayer
@@ -33,7 +39,6 @@ var match_duel := 1
 var match_results := [0, 0, 0]
 var match_outcome := 0
 var _screen: Node
-var _screen_replay_frame := 0
 var _screen_host: Node
 var _scene_wipe: Node
 const SCENE_WIPE := preload("res://core/scene_wipe.gd")
@@ -65,11 +70,6 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion or event is InputEventMouseButton:
 		_mouse_active_at = _ticks
-		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed \
-				and is_instance_valid(_scene_wipe) and _scene_wipe.progress < 240 and DisplayServer.get_name() != "headless":
-			var point: Vector2 = event.position
-			if is_instance_valid(_screen_host): point = _screen_host.duel_transform().affine_inverse() * point
-			if Rect2(0, 0, 800, 600).has_point(point): _scene_wipe.click(point)
 	elif (event is InputEventKey or event is InputEventAction or event is InputEventJoypadButton) \
 			and event.pressed:
 		# Acciones y mando llegan al juego como teclas de 0x538770.
@@ -122,7 +122,6 @@ func goto(screen: Node) -> void:
 		_scene_wipe = null
 	var effect := _scene_wipe_mode(_screen, screen)
 	var old_frame: Texture2D
-	var waves: Array[Node2D] = []
 	# El launcher es propio del port; el primer arranque no tiene snapshot previo.
 	var headless := DisplayServer.get_name() == "headless"
 	if not LauncherSettings.fast_play and current_game != "" and (not headless or Debug.headless_wipe) \
@@ -130,13 +129,6 @@ func goto(screen: Node) -> void:
 			and _screen.get_script().resource_path.get_file() not in ["launcher.gd", "launcher_android.gd", "content_setup.gd"]:
 		# Sin ventana no hay imagen que barrer; el cotejo por valores (--ui-values) conserva el
 		# barrido con una imagen vacia porque retiene la pantalla nueva los mismos ticks.
-		if not headless:
-			for cursor in get_tree().get_nodes_in_group("duel_cursors"):
-				if _screen.is_ancestor_of(cursor) and cursor.is_visible_in_tree():
-					var layer: Node2D = cursor.take_transition_waves()
-					if layer != null: waves.append(layer)
-			# La onda se compone sobre el resultado, fuera de los dos snapshots.
-			if not waves.is_empty(): RenderingServer.force_draw(false)
 		var old_image := Image.create(1, 1, false, Image.FORMAT_RGBA8) if headless \
 				else _screen.get_viewport().get_texture().get_image()
 		if old_image != null and not old_image.is_empty():
@@ -147,7 +139,6 @@ func goto(screen: Node) -> void:
 	elif is_instance_valid(_screen):
 		_screen.queue_free()
 	_screen = screen
-	_screen_replay_frame = Debug._frame
 	get_tree().root.content_scale_aspect = LauncherSettings.gameplay_aspect()
 	Engine.time_scale = LauncherSettings.simulation_speed if current_game != "" else 1.0
 	if LauncherSettings.aspect == "overlay" and _is_duel_viewer(screen) and screen.game in ["yugi", "kaiba", "joey"]:
@@ -160,12 +151,10 @@ func goto(screen: Node) -> void:
 		get_tree().root.move_child.call_deferred(_mobile_pointer, -1)
 	get_tree().root.move_child.call_deferred(_window_shortcuts, -1)
 	if old_frame != null:
-		_start_scene_wipe.call_deferred(old_frame, screen, effect, waves)
-	else:
-		for wave in waves: wave.free()
+		_start_scene_wipe.call_deferred(old_frame, screen, effect)
 
 
-## Callers acreditados: título1e/20/13, bust4b, janken/duelo2a.
+## Callers acreditados: menus13; bust/bootstrap4b; duelo/janken2a.
 func _scene_wipe_mode(previous: Node, following: Node) -> int:
 	if not is_instance_valid(previous): return 0x13
 	var script: Script = previous.get_script()
@@ -173,27 +162,18 @@ func _scene_wipe_mode(previous: Node, following: Node) -> int:
 	var source := script.resource_path.get_file()
 	var target: Script = following.get_script()
 	var target_name := target.resource_path.get_file() if target != null else ""
-	if source == "title_screen.gd":
-		match target_name:
-			"deck_editor.gd": return 0x1e
-			"card_list.gd", "bust_up_scene.gd", "bust_up_rival.gd", "lan_connect.gd", "normal_duel.gd", "joey_native_normal.gd":
-				return 0x20
-			"replay_viewer.gd": return 0x20 if following.get("kind") == "demo" else 0x13
-	if source == "lan_connect.gd": return 0x20
-	if source in ["bust_up_scene.gd", "bust_up_rival.gd"]:
+	if source in ["bust_up_scene.gd", "bust_up_rival.gd", "launcher.gd", "launcher_android.gd", "content_setup.gd"]:
 		return 0x4b
 	if source in ["tutorial_menu.gd", "tutorial_menu_kaiba.gd"] and target_name == "title_screen.gd":
 		return 0x4b
-	if source in ["normal_duel.gd", "joey_native_normal.gd", "replay_viewer.gd", "tutorial_lesson.gd",
-			"janken_scene.gd", "janken_kaiba.gd", "janken_joey.gd"]:
+	if source in ["normal_duel.gd", "joey_native_normal.gd", "replay_viewer.gd", "janken_scene.gd", "janken_kaiba.gd", "janken_joey.gd"]:
 		return 0x2a
 	return 0x13
 
 
 ## 531f80 cambia de escena y dibuja una vez el destino antes de la captura40a260.
-func _start_scene_wipe(old_frame: Texture2D, screen: Node, effect := 0x13, waves: Array[Node2D] = []) -> void:
+func _start_scene_wipe(old_frame: Texture2D, screen: Node, effect := 0x13) -> void:
 	if not is_instance_valid(screen) or screen != _screen or not screen.is_inside_tree():
-		for wave in waves: wave.free()
 		return
 	var previous_mode := screen.process_mode
 	screen.process_mode = Node.PROCESS_MODE_DISABLED
@@ -204,7 +184,6 @@ func _start_scene_wipe(old_frame: Texture2D, screen: Node, effect := 0x13, waves
 	var wipe := SCENE_WIPE.new(old_frame, old_frame, screen, previous_mode, effect)
 	_scene_wipe = wipe
 	screen.get_viewport().add_child(wipe)
-	wipe.add_waves(waves)
 	wipe.set_process(false)
 	if DisplayServer.get_name() == "headless":
 		# Sin ventana (Debug.headless_wipe) no hay fotograma que esperar ni imagen de destino:
